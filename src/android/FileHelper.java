@@ -126,15 +126,24 @@ public class FileHelper {
             // DownloadsProvider
             else if (isDownloadsDocument(uri)) {
                 final String id = DocumentsContract.getDocumentId(uri);
+
+                 if (id == null || id.length() == 0) {
+                    return null;
+                 }
+
+                if (id.startsWith("raw:")) {
+                    return id.replaceFirst("raw:", "");
+                }
+
                 try {
                     final Uri contentUri = ContentUris.withAppendedId(
-                            Uri.parse("content://downloads/public_downloads"), Long.valueOf(id));
+                    Uri.parse("content://downloads/public_downloads"), Long.valueOf(id));
 
                     return getDataColumn(context, contentUri, null, null);
                 } catch (NumberFormatException e) {
-                    //In Android 8 and Android P the id is not a number
                     return uri.getPath().replaceFirst("^/document/raw:", "").replaceFirst("^raw:", "");
                 }
+
             }
             // MediaProvider
             else if (isMediaDocument(uri)) {
