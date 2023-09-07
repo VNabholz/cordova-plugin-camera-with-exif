@@ -339,6 +339,11 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
     private boolean hasPermission() {
         for (String p : permissions) {
+          if (android.os.Build.VERSION.SDK_INT < 33) {
+            if(p.equals(Manifest.permission.READ_MEDIA_VIDEO) || p.equals(Manifest.permission.READ_MEDIA_IMAGES)){
+              continue;
+            }
+          }
             if (!PermissionHelper.hasPermission(this, p)) {
                 return false;
             }
@@ -1779,14 +1784,9 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
     }
 
-    private boolean hasPermission() {
-        for (String p : permissions) {
-          if (android.os.Build.VERSION.SDK_INT < 33) {
-            if(p.equals(Manifest.permission.READ_MEDIA_VIDEO) || p.equals(Manifest.permission.READ_MEDIA_IMAGES)){
-              continue;
-            }
-          }
-            if (!PermissionHelper.hasPermission(this, p)) {
+    private boolean hasPermissions(String[] permissions) {
+        for (String permission : permissions) {
+            if (!PermissionHelper.hasPermission(this, permission)) {
                 return false;
             }
         }
