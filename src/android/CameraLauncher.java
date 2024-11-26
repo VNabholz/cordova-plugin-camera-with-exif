@@ -145,16 +145,6 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     private boolean orientationCorrected; // Has the picture's orientation been corrected
     private boolean allowEdit; // Should we allow the user to crop the image.
 
-    protected final static String[] permissions = { Manifest.permission.CAMERA,
-            Manifest.permission.ACCESS_MEDIA_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.READ_MEDIA_VIDEO,
-            Manifest.permission.READ_MEDIA_IMAGES,
-            Manifest.permission.READ_EXTERNAL_STORAGE,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE
-    };
-
     public CallbackContext callbackContext;
     private int numPics;
 
@@ -207,9 +197,15 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
         this.callbackContext = callbackContext;
 
-        // Adding an API to CoreAndroid to get the BuildConfigValue
+      /*
+       // Adding an API to CoreAndroid to get the BuildConfigValue
         // This allows us to not make this a breaking change to embedding
         this.applicationId = (String) BuildHelper.getBuildConfigValue(cordova.getActivity(), "APPLICATION_ID");
+        this.applicationId = preferences.getString("applicationId", this.applicationId);
+
+        */
+
+        this.applicationId = cordova.getContext().getPackageName();
         this.applicationId = preferences.getString("applicationId", this.applicationId);
 
         if (action.equals("takePicture")) {
@@ -284,39 +280,21 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     // LOCAL METHODS
     // --------------------------------------------------------------------------
 
-    private String[] getPermissions(boolean storageOnly, int mediaType) {
-        if (android.os.Build.VERSION.SDK_INT >= 33) {
-            if (storageOnly) {
-                switch (mediaType) {
-                    case PICTURE:
-                        return new String[] { Manifest.permission.READ_MEDIA_IMAGES };
-                    case VIDEO:
-                        return new String[] { Manifest.permission.READ_MEDIA_VIDEO };
-                    default:
-                        return new String[] { Manifest.permission.READ_MEDIA_IMAGES,
-                                Manifest.permission.READ_MEDIA_VIDEO };
-                }
-            } else {
-                switch (mediaType) {
-                    case PICTURE:
-                        return new String[] { Manifest.permission.CAMERA, Manifest.permission.CAMERA,
-                                Manifest.permission.READ_MEDIA_IMAGES };
-                    case VIDEO:
-                        return new String[] { Manifest.permission.CAMERA, Manifest.permission.READ_MEDIA_VIDEO };
-                    default:
-                        return new String[] { Manifest.permission.CAMERA, Manifest.permission.READ_MEDIA_IMAGES,
-                                Manifest.permission.READ_MEDIA_VIDEO };
-                }
-            }
-        } else {
-            if (storageOnly) {
-                return new String[] { Manifest.permission.READ_EXTERNAL_STORAGE,
-                        Manifest.permission.WRITE_EXTERNAL_STORAGE };
-            } else {
-                return new String[] { Manifest.permission.CAMERA, Manifest.permission.READ_EXTERNAL_STORAGE,
-                        Manifest.permission.WRITE_EXTERNAL_STORAGE };
-            }
+     private String[] getPermissions(boolean storageOnly, int mediaType) {
+        ArrayList<String> permissions = new ArrayList<>();
+        
+        if (android.os.Build.VERSION.SDK_INT <= 32) {   
+            // Android API 32 or lower
+            permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+            permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
         }
+
+        if (!storageOnly) {
+            // Add camera permission when not storage.
+            permissions.add(Manifest.permission.CAMERA);
+        }
+
+        return permissions.toArray(new String[0]);
     }
 
 
@@ -336,7 +314,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         cache.mkdirs();
         return cache.getAbsolutePath();
     }
-
+/*
     private boolean hasPermission() {
         for (String p : permissions) {
           if (android.os.Build.VERSION.SDK_INT < 33) {
@@ -350,6 +328,8 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         }
         return true;
     }
+ */
+
 
     /**
      * Take a picture with the camera.
@@ -370,17 +350,25 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
      * @param returnType   Set the type of image to return.
      */
 
-    public void callTakePicture(int returnType, int encodingType) {
-
+     public void callTakePicture(int returnType, int encodingType) {
+        String[] storagePermissions = getPermissions(true, mediaType);
+        boolean saveAlbumPermission;
+        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            saveAlbumPermission = this.saveToPhotoAlbum ? hasPermissions(storagePermissions) : true;
+        } else {
+            saveAlbumPermission = hasPermissions(storagePermissions);
+        }
         boolean takePicturePermission = PermissionHelper.hasPermission(this, Manifest.permission.CAMERA);
+
+        // CB-10120: The CAMERA permission does not need to be requested unless it is declared
+        // in AndroidManifest.xml. This plugin does not declare it, but others may and so we must
+        // check the package info to determine if the permission is present.
 
         if (!takePicturePermission) {
             takePicturePermission = true;
             try {
                 PackageManager packageManager = this.cordova.getActivity().getPackageManager();
-                String[] permissionsInPackage = packageManager.getPackageInfo(
-                        this.cordova.getActivity().getPackageName(),
-                        PackageManager.GET_PERMISSIONS).requestedPermissions;
+                String[] permissionsInPackage = packageManager.getPackageInfo(this.cordova.getActivity().getPackageName(), PackageManager.GET_PERMISSIONS).requestedPermissions;
                 if (permissionsInPackage != null) {
                     for (String permission : permissionsInPackage) {
                         if (permission.equals(Manifest.permission.CAMERA)) {
@@ -395,14 +383,19 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
             }
         }
 
-        if (hasPermission()) {
+        if (takePicturePermission && saveAlbumPermission) {
             takePicture(returnType, encodingType);
+        } else if (saveAlbumPermission) {
+            PermissionHelper.requestPermission(this, TAKE_PIC_SEC, Manifest.permission.CAMERA);
+        } else if (takePicturePermission) {
+            PermissionHelper.requestPermissions(this, TAKE_PIC_SEC, storagePermissions);
         } else {
-            PermissionHelper.requestPermissions(this, 0, permissions);
+            PermissionHelper.requestPermissions(this, TAKE_PIC_SEC, getPermissions(false, mediaType));
         }
 
     }
 
+   
     public void takePicture(int returnType, int encodingType) {
         // Save the number of images currently on disk for later
         this.numPics = queryImgDB(whichContentStore()).getCount();
@@ -1654,54 +1647,24 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     }
 
     public void onRequestPermissionResult(int requestCode, String[] permissions,
-            int[] grantResults) throws JSONException {
-        // user may not allow geotagging but allow that to pass through
-        // Android SDK 33+ support added 08/07/2023
-
-        if (android.os.Build.VERSION.SDK_INT >= 33) {
-
-            boolean hasCameraAccess = PermissionHelper.hasPermission(this, Manifest.permission.CAMERA);
-            boolean canAccessCourseLocation = PermissionHelper.hasPermission(this,
-                    Manifest.permission.ACCESS_COARSE_LOCATION);
-            boolean canAccessFineLocation = PermissionHelper.hasPermission(this,
-                    Manifest.permission.ACCESS_FINE_LOCATION);
-            boolean canAccessMediaLocation = PermissionHelper.hasPermission(this,
-                    Manifest.permission.ACCESS_MEDIA_LOCATION);
-
-            if (hasCameraAccess && canAccessCourseLocation && canAccessFineLocation && canAccessMediaLocation) {
-                switch (requestCode) {
-                    case TAKE_PIC_SEC:
-                        takePicture(this.destType, this.encodingType);
-                        break;
-                    case SAVE_TO_ALBUM_SEC:
-                        this.getImage(this.srcType, this.destType, this.encodingType);
-                        break;
-                }
-            } else {
-                PermissionHelper.hasPermission(this, Manifest.permission.CAMERA);
-            }
-        } else {
-            for (int i = 0; i < permissions.length; i++) {
-                if ((grantResults[i] != PackageManager.PERMISSION_DENIED)
-                        || permissions[i].equals("android.permission.ACCESS_FINE_LOCATION")
-                        || permissions[i].equals("android.permission.ACCESS_MEDIA_LOCATION")) {
-                    continue;
-                }
-                this.callbackContext
-                        .sendPluginResult(new PluginResult(PluginResult.Status.ERROR, PERMISSION_DENIED_ERROR));
+                                          int[] grantResults) {
+        for (int r : grantResults) {
+            if (r == PackageManager.PERMISSION_DENIED) {
+                this.callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.ERROR, PERMISSION_DENIED_ERROR));
                 return;
             }
-            switch (requestCode) {
-                case TAKE_PIC_SEC:
-                    takePicture(this.destType, this.encodingType);
-                    break;
-
-                case SAVE_TO_ALBUM_SEC:
-                    this.getImage(this.srcType, this.destType, this.encodingType);
-                    break;
-            }
+        }
+        switch (requestCode) {
+            case TAKE_PIC_SEC:
+                takePicture(this.destType, this.encodingType);
+                break;
+            case SAVE_TO_ALBUM_SEC:
+                this.getImage(this.srcType, this.destType, this.encodingType );
+                break;
         }
     }
+
+
 
     /**
      * Taking or choosing a picture launches another Activity, so we need to

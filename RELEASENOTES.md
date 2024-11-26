@@ -20,6 +20,13 @@
 -->
 
 # Release Notes
+### 1.6.2 (November 26, 2024)
+- bump version
+- Increase the google play services version
+
+### 1.5.3 (September 12, 2023)
+- bump version
+- simplify and fix permission request code to call camera or get image after initial permission is granted
 
 ### 1.5.2 (August 9, 2023)
 
