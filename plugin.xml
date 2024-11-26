@@ -35,7 +35,7 @@
 
     <!-- android -->
     <platform name="android">
-        <framework src="com.google.android.gms:play-services-location:11.6.2" />
+        <framework src="com.google.android.gms:play-services-location:19.0.0" />
         <framework src="com.google.code.gson:gson:2.8.5" />
 
         <config-file target="res/xml/config.xml" parent="/*">
