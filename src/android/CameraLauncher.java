@@ -314,22 +314,6 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         cache.mkdirs();
         return cache.getAbsolutePath();
     }
-/*
-    private boolean hasPermission() {
-        for (String p : permissions) {
-          if (android.os.Build.VERSION.SDK_INT < 33) {
-            if(p.equals(Manifest.permission.READ_MEDIA_VIDEO) || p.equals(Manifest.permission.READ_MEDIA_IMAGES)){
-              continue;
-            }
-          }
-            if (!PermissionHelper.hasPermission(this, p)) {
-                return false;
-            }
-        }
-        return true;
-    }
- */
-
 
     /**
      * Take a picture with the camera.
